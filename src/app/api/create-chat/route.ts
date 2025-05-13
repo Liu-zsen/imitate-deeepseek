@@ -5,6 +5,7 @@ export async function POST(req: Request) {
     const {title, model} = await req.json()
 
     const {userId} = await auth()
+
     // check 一下用户是否登陆
     if (userId) {
         // 1. 创建一个chat

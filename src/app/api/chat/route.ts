@@ -1,5 +1,10 @@
+
+import { createMessage } from '@/db';
 import { createDeepSeek } from '@ai-sdk/deepseek';
+import { auth } from '@clerk/nextjs/server';
 import { streamText } from 'ai';
+import { error } from 'console';
+
 // 后端的API接收到user 点击提交之后给收到的消息 给到DeepSeek
 // DeepSeek给出result的流式输出, 给到前端    
 // Allow streaming responses up to 30 seconds
@@ -11,13 +16,25 @@ const deepseek = createDeepSeek({
 })
 
 export async function POST(req: Request) {
-  const { messages } = await req.json();
+  const { messages, model, chat_id, chat_user_id } = await req.json();
 
+  const {userId} = await auth()
+  if (!userId || userId !== chat_user_id) {
+    return new Response(JSON.stringify({error: "Unauthorized"}), {status: 401})
+  }
+
+  // 存入用户消息
+  const lastMessage = messages[messages.length - 1]
+  await createMessage(chat_id, lastMessage.content, lastMessage.role)
+  
   const result = streamText({
     model: deepseek('deepseek-v3'),
     system: 'You are a helpful assistant.',
     messages,
-  });
+    onFinish: async(result) => {
+      await createMessage(chat_id, result.text, 'assistant')
+    }
+  })
 
   return result.toDataStreamResponse();
 }
